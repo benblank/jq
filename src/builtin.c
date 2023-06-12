@@ -34,6 +34,7 @@ void *alloca (size_t);
 #endif
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -1231,6 +1232,30 @@ static jv f_stderr(jq_state *jq, jv input) {
   return input;
 }
 
+static jv f_write_fd(jq_state *jq, jv input, jv raw_fd) {
+  if (!jv_is_integer(raw_fd)) {
+    jv_free(input);
+
+    return type_error(raw_fd, "fd must be an integer");
+  }
+
+  int fd = (int) jv_number_value(raw_fd);
+
+  jv_free(raw_fd);
+
+  if (jv_get_kind(input) != JV_KIND_STRING) {
+    // fprintf(stderr, "struct flags: %02hhx\n", input.kind_flags);
+    return type_error(input, "can only write a string");
+  }
+
+  char *data = jv_string_value(input);
+
+  // TODO: error handling; dprintf returns -1 on error, but is any other info (e.g. errno) available?
+  dprintf(fd, data);
+
+  return input;
+}
+
 static jv tm2jv(struct tm *tm) {
   return JV_ARRAY(jv_number(tm->tm_year + 1900),
                   jv_number(tm->tm_mon),
@@ -1741,6 +1766,7 @@ static const struct cfunction function_list[] = {
   {(cfunction_ptr)f_input, "input", 1},
   {(cfunction_ptr)f_debug, "debug", 1},
   {(cfunction_ptr)f_stderr, "stderr", 1},
+  {(cfunction_ptr)f_write_fd, "write_fd", 2},
   {(cfunction_ptr)f_strptime, "strptime", 2},
   {(cfunction_ptr)f_strftime, "strftime", 2},
   {(cfunction_ptr)f_strflocaltime, "strflocaltime", 2},
